@@ -1,14 +1,16 @@
 # coding=utf-8
+import sys
+import os
+
+os.chdir(sys.path[0])
 import random
 import numpy as np
 import argparse
-import sys
-import os
 import shutil
 import logging
 import torch
 import torch.nn as nn
-
+from time import strftime, localtime
 from pytorch_transformers import BertTokenizer
 from pytorch_transformers import BertConfig, WEIGHTS_NAME, CONFIG_NAME
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
@@ -16,7 +18,7 @@ from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 import args as arguments
 from Utils.utils import get_device
 from Utils.load_datatsets import load_data
-from train_evalute import train, evaluate_save
+from Utils.train_evalute import train, evaluate_save
 
 from flyai.utils import remote_helper
 from flyai.dataset import Dataset
@@ -46,87 +48,89 @@ class Instructor(object):
         self.arguments = arguments
         self.dataset = Dataset(epochs=self.args.EPOCHS, batch=self.args.BATCH, val_batch=self.args.BATCH)
 
-    def run(self, config, model_times, label_list):
-        if not os.path.exists(config.output_dir + model_times):
-            os.makedirs(config.output_dir + model_times)
+    def run(self, model_times, label_list):
+        if not os.path.exists(self.arguments.output_dir + model_times):
+            os.makedirs(self.arguments.output_dir + model_times)
 
-        if not os.path.exists(config.cache_dir + model_times):
-            os.makedirs(config.cache_dir + model_times)
+        if not os.path.exists(self.arguments.cache_dir + model_times):
+            os.makedirs(self.arguments.cache_dir + model_times)
 
         # Bert 模型输出文件
-        output_model_file = os.path.join(config.output_dir, model_times, WEIGHTS_NAME)
-        output_config_file = os.path.join(config.output_dir, model_times, CONFIG_NAME)
+        output_model_file = os.path.join(self.arguments.output_dir, model_times, WEIGHTS_NAME)
+        output_config_file = os.path.join(self.arguments.output_dir, model_times, CONFIG_NAME)
 
         # 设备准备
-        gpu_ids = [int(device_id) for device_id in config.gpu_ids.split()]
+        gpu_ids = [int(device_id) for device_id in self.arguments.gpu_ids.split()]
         device, n_gpu = get_device(gpu_ids[0])
         if n_gpu > 1:
             n_gpu = len(gpu_ids)
 
-        config.train_batch_size = config.train_batch_size // config.gradient_accumulation_steps
+        self.arguments.train_batch_size = self.arguments.train_batch_size // self.arguments.gradient_accumulation_steps
 
         # 设定随机种子
-        random.seed(config.seed)
-        np.random.seed(config.seed)
-        torch.manual_seed(config.seed)
+        random.seed(self.arguments.seed)
+        np.random.seed(self.arguments.seed)
+        torch.manual_seed(self.arguments.seed)
         if n_gpu > 0:
-            torch.cuda.manual_seed_all(config.seed)
+            torch.cuda.manual_seed_all(self.arguments.seed)
 
         # 数据准备
-        tokenizer = BertTokenizer(config.bert_vocab_file).from_pretrained(config.bert_model_dir,
-                                                                          do_lower_case=config.do_lower_case)  # 分词器选择
+        tokenizer = BertTokenizer(self.arguments.bert_vocab_file).from_pretrained(self.arguments.bert_model_dir,
+                                                                                  do_lower_case=self.arguments.do_lower_case)  # 分词器选择
 
         num_labels = len(label_list)
 
         # Train and dev
-        if config.do_train:
+        if self.arguments.do_train:
 
             train_dataloader, train_examples_len = load_data(
-                config.data_dir, tokenizer, config.max_seq_length, config.train_batch_size, "train", label_list)
+                self.arguments.data_dir, tokenizer, self.arguments.max_seq_length, self.arguments.train_batch_size,
+                "train", label_list)
             dev_dataloader, _ = load_data(
-                config.data_dir, tokenizer, config.max_seq_length, config.dev_batch_size, "dev", label_list)
+                self.arguments.data_dir, tokenizer, self.arguments.max_seq_length, self.arguments.dev_batch_size, "dev",
+                label_list)
 
             num_train_optimization_steps = int(
-                train_examples_len / config.train_batch_size / config.gradient_accumulation_steps) * config.num_train_epochs
+                train_examples_len / self.arguments.train_batch_size / self.arguments.gradient_accumulation_steps) * self.arguments.num_train_epochs
 
             # 模型准备
-            print("model name is {}".format(config.model_name))
-            if config.model_name == "BertOrigin":
+            print("model name is {}".format(self.arguments.model_name))
+            if self.arguments.model_name == "BertOrigin":
                 from BertOrigin.BertOrigin import BertOrigin
-                model = BertOrigin.from_pretrained(pretrained_model_name_or_path=config.bert_model_dir,
-                                                   num_labels=config.num_labels,
-                                                   cache_dir=config.cache_dir)
-            elif config.model_name == "BertCNN":
+                model = BertOrigin.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                                   num_labels=self.arguments.num_labels,
+                                                   cache_dir=self.arguments.cache_dir)
+            elif self.arguments.model_name == "BertCNN":
                 from BertCNN.BertCNN import BertCNN
-                filter_sizes = [int(val) for val in config.filter_sizes.split()]
-                model = BertCNN.from_pretrained(pretrained_model_name_or_path=config.bert_model_dir,
-                                                num_labels=config.num_labels,
-                                                cache_dir=config.cache_dir,
-                                                n_filters=config.filter_num,
+                filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
+                model = BertCNN.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                                num_labels=self.arguments.num_labels,
+                                                cache_dir=self.arguments.cache_dir,
+                                                n_filters=self.arguments.filter_num,
                                                 filter_sizes=filter_sizes)
-            elif config.model_name == "BertATT":
+            elif self.arguments.model_name == "BertATT":
                 from BertATT.BertATT import BertATT
-                model = BertATT.from_pretrained(pretrained_model_name_or_path=config.bert_model_dir,
-                                                num_labels=config.num_labels,
-                                                cache_dir=config.cache_dir)
+                model = BertATT.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                                num_labels=self.arguments.num_labels,
+                                                cache_dir=self.arguments.cache_dir)
 
-            elif config.model_name == "BertRCNN":
+            elif self.arguments.model_name == "BertRCNN":
                 from BertRCNN.BertRCNN import BertRCNN
-                model = BertRCNN.from_pretrained(pretrained_model_name_or_path=config.bert_model_dir,
-                                                 num_labels=config.num_labels,
-                                                 cache_dir=config.cache_dir,
-                                                 rnn_hidden_size=config.hidden_size,
-                                                 num_layers=config.num_layers,
-                                                 bidirectional=config.bidirectional,
-                                                 dropout=config.dropout)
+                model = BertRCNN.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                                 num_labels=self.arguments.num_labels,
+                                                 cache_dir=self.arguments.cache_dir,
+                                                 rnn_hidden_size=self.arguments.hidden_size,
+                                                 num_layers=self.arguments.num_layers,
+                                                 bidirectional=self.arguments.bidirectional,
+                                                 dropout=self.arguments.dropout)
 
-            elif config.model_name == "BertCNNPlus":
+            elif self.arguments.model_name == "BertCNNPlus":
                 from BertCNNPlus.BertCNNPlus import BertCNNPlus
-                filter_sizes = [int(val) for val in config.filter_sizes.split()]
-                model = BertCNNPlus.from_pretrained(pretrained_model_name_or_path=config.bert_model_dir,
+                filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
+                model = BertCNNPlus.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
                                                     num_labels=num_labels,
-                                                    cache_dir=config.cache_dir,
-                                                    n_filters=config.filter_num,
+                                                    cache_dir=self.arguments.cache_dir,
+                                                    n_filters=self.arguments.filter_num,
                                                     filter_sizes=filter_sizes)
 
             model.to(device)
@@ -144,47 +148,49 @@ class Instructor(object):
                     nd in n for nd in no_decay)], 'weight_decay': 0.0}
             ]
 
-            optimizer = AdamW(optimizer_grouped_parameters, lr=config.learning_rate,
+            optimizer = AdamW(optimizer_grouped_parameters, lr=self.arguments.learning_rate,
                               correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
-            scheduler = WarmupLinearSchedule(optimizer, warmup_steps=config.warmup_proportion,
+            scheduler = WarmupLinearSchedule(optimizer, warmup_steps=self.arguments.warmup_proportion,
                                              t_total=num_train_optimization_steps)  # PyTorch scheduler
 
             """ 损失函数准备 """
             criterion = nn.CrossEntropyLoss()
             criterion = criterion.to(device)
 
-            train(config.num_train_epochs, n_gpu, model, train_dataloader, dev_dataloader, optimizer, scheduler,
-                  criterion, config.gradient_accumulation_steps, device, label_list, output_model_file,
+            train(self.arguments.num_train_epochs, n_gpu, model, train_dataloader, dev_dataloader, optimizer, scheduler,
+                  criterion, self.arguments.gradient_accumulation_steps, device, label_list, output_model_file,
                   output_config_file,
-                  config.log_dir, config.print_step, config.early_stop)
+                  self.arguments.log_dir, self.arguments.print_step, self.arguments.early_stop)
 
         """ Test """
 
         # test 数据
         test_dataloader, _ = load_data(
-            config.data_dir, tokenizer, config.max_seq_length, config.test_batch_size, "test", label_list)
+            self.arguments.data_dir, tokenizer, self.arguments.max_seq_length, self.arguments.test_batch_size, "test",
+            label_list)
 
         # 加载模型
         bert_config = BertConfig(output_config_file)
 
-        if config.model_name == "BertOrigin":
+        if self.arguments.model_name == "BertOrigin":
             from BertOrigin.BertOrigin import BertOrigin
             model = BertOrigin(config=bert_config)
-        elif config.model_name == "BertCNN":
+        elif self.arguments.model_name == "BertCNN":
             from BertCNN.BertCNN import BertCNN
-            filter_sizes = [int(val) for val in config.filter_sizes.split()]
-            model = BertCNN(config=bert_config, n_filters=config.filter_num, filter_sizes=filter_sizes)
-        elif config.model_name == "BertATT":
+            filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
+            model = BertCNN(config=bert_config, n_filters=self.arguments.filter_num, filter_sizes=filter_sizes)
+        elif self.arguments.model_name == "BertATT":
             from BertATT.BertATT import BertATT
             model = BertATT(config=bert_config)
-        elif config.model_name == "BertRCNN":
+        elif self.arguments.model_name == "BertRCNN":
             from BertRCNN.BertRCNN import BertRCNN
-            model = BertRCNN(config=bert_config, rnn_hidden_size=config.hidden_size, num_layers=config.num_layers,
-                             bidirectional=config.bidirectional, dropout=config.dropout)
-        elif config.model_name == "BertCNNPlus":
+            model = BertRCNN(config=bert_config, rnn_hidden_size=self.arguments.hidden_size,
+                             num_layers=self.arguments.num_layers,
+                             bidirectional=self.arguments.bidirectional, dropout=self.arguments.dropout)
+        elif self.arguments.model_name == "BertCNNPlus":
             from BertCNNPlus.BertCNNPlus import BertCNNPlus
-            filter_sizes = [int(val) for val in config.filter_sizes.split()]
-            model = BertCNNPlus(config=bert_config, n_filters=config.filter_num, filter_sizes=filter_sizes)
+            filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
+            model = BertCNNPlus(config=bert_config, n_filters=self.arguments.filter_num, filter_sizes=filter_sizes)
 
         model.load_state_dict(torch.load(output_model_file))
         model.to(device)
@@ -210,6 +216,27 @@ class Instructor(object):
 
 
 if __name__ == '__main__':
+    if arguments.model_name == "BertATT":
+        from BertATT import args
+
+    elif arguments.model_name == "BertCNN":
+        from BertCNN import args
+
+    elif arguments.model_name == 'BertCNNPlus':
+        from BertCNNPlus import args
+
+    elif arguments.model_name == 'BertHAN':
+        from BertHAN import args
+
+    elif arguments.model_name == "BertRCNN":
+        from BertRCNN import args
+
+    elif arguments.model_name == "BertOrigin":
+        from BertOrigin import args
+
+    # 更新dict
+    arguments.update(args)
+
     if arguments.seed is not None:
         random.seed(arguments.seed)
         np.random.seed(arguments.seed)

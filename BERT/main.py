@@ -29,6 +29,8 @@ remote_helper.get_remote_date("https://www.flyai.com/m/chinese_base.zip")
 shutil.copyfile(os.path.join(os.getcwd(), 'vocab.txt'),
                 os.path.join(os.getcwd(), arguments.pretrained_bert_name, 'vocab.txt'))
 
+DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 
 class Instructor(object):
     """
@@ -205,3 +207,21 @@ class Instructor(object):
         for label in print_list:
             print('\t {}: Precision: {} | recall: {} | f1 score: {}'.format(
                 label, test_report[label]['precision'], test_report[label]['recall'], test_report[label]['f1-score']))
+
+
+if __name__ == '__main__':
+    if arguments.seed is not None:
+        random.seed(arguments.seed)
+        np.random.seed(arguments.seed)
+        torch.manual_seed(arguments.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    log_path = os.path.join(os.getcwd(), arguments.log_path)
+    if os.path.exists(log_path) is False:
+        os.mkdir(log_path)
+    log_file = '{}-{}-{}.log'.format(arguments.model_name, arguments.dataset, strftime('%y%m%d-%H%M', localtime()))
+    logger.addHandler(logging.FileHandler(os.path.join(log_path, log_file)))
+
+    instructor = Instructor(arguments)
+    instructor.run()

@@ -2,13 +2,11 @@
 
 from pytorch_transformers.modeling_bert import BertModel, BertPreTrainedModel
 
-import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
 
 
 class BertOrigin(BertPreTrainedModel):
-
     def __init__(self, config):
         super(BertOrigin, self).__init__(config)
         self.num_labels = config.num_labels

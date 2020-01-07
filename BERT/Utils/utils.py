@@ -2,7 +2,6 @@
 from sklearn import metrics
 import random
 import numpy as np
-
 import torch
 
 
@@ -46,3 +45,70 @@ def classifiction_metric(preds, labels, label_list):
     else:
         auc = metrics.roc_auc_score(labels, preds)
     return acc, report, auc
+
+
+def evaluate(model, dataloader, criterion, device, label_list):
+    model.eval()
+
+    all_preds = np.array([], dtype=int)
+    all_labels = np.array([], dtype=int)
+    epoch_loss = 0
+
+    for _, input_ids, input_mask, segment_ids, label_ids in dataloader:
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
+        label_ids = label_ids.to(device)
+
+        with torch.no_grad():
+            logits = model(input_ids, segment_ids, input_mask, labels=None)
+        loss = criterion(logits.view(-1, len(label_list)), label_ids.view(-1))
+
+        preds = logits.detach().cpu().numpy()
+        outputs = np.argmax(preds, axis=1)
+        all_preds = np.append(all_preds, outputs)
+
+        label_ids = label_ids.to('cpu').numpy()
+        all_labels = np.append(all_labels, label_ids)
+
+        epoch_loss += loss.mean().item()
+
+    acc, report, auc = classifiction_metric(all_preds, all_labels, label_list)
+
+    return epoch_loss / len(dataloader), acc, report, auc
+
+
+def evaluate_save(model, dataloader, criterion, device, label_list):
+    model.eval()
+
+    all_preds = np.array([], dtype=int)
+    all_labels = np.array([], dtype=int)
+    all_idxs = np.array([], dtype=int)
+
+    epoch_loss = 0
+
+    for idxs, input_ids, input_mask, segment_ids, label_ids in dataloader:
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
+        label_ids = label_ids.to(device)
+
+        with torch.no_grad():
+            logits = model(input_ids, segment_ids, input_mask, labels=None)
+        loss = criterion(logits.view(-1, len(label_list)), label_ids.view(-1))
+
+        preds = logits.detach().cpu().numpy()
+        outputs = np.argmax(preds, axis=1)
+        all_preds = np.append(all_preds, outputs)
+
+        label_ids = label_ids.to('cpu').numpy()
+        all_labels = np.append(all_labels, label_ids)
+
+        idxs = idxs.detach().cpu().numpy()
+        all_idxs = np.append(all_idxs, idxs)
+
+        epoch_loss += loss.mean().item()
+
+    acc, report, auc = classifiction_metric(all_preds, all_labels, label_list)
+
+    return epoch_loss / len(dataloader), acc, report, auc, all_idxs, all_labels, all_preds

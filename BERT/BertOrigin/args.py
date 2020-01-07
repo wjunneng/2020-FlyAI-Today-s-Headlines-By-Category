@@ -4,42 +4,39 @@ import argparse
 
 
 def get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, log_dir):
-
-
     parser = argparse.ArgumentParser(description='BERT Baseline')
 
     parser.add_argument("--model_name", default="BertOrigin", type=str, help="the name of model")
 
-    parser.add_argument("--save_name", default="BertOrigin",type=str, help="the name file of model")
+    parser.add_argument("--save_name", default="BertOrigin", type=str, help="the name file of model")
 
     # 文件路径：数据目录， 缓存目录
     parser.add_argument("--data_dir",
                         default=data_dir,
                         type=str,
                         help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
-    
+
     parser.add_argument("--output_dir",
                         default=output_dir + "BertOrigin/",
                         type=str,
                         help="The output directory where the model predictions and checkpoints will be written.")
 
-    parser.add_argument("--cache_dir", 
+    parser.add_argument("--cache_dir",
                         default=cache_dir + "BertOrigin/",
                         type=str,
                         help="缓存目录，主要用于模型缓存")
-    
+
     parser.add_argument("--log_dir",
                         default=log_dir + "BertOrigin/",
                         type=str,
                         help="日志目录，主要用于 tensorboard 分析")
 
-
     parser.add_argument("--bert_vocab_file",
-                         default=bert_vocab_file,
-                         type=str)
+                        default=bert_vocab_file,
+                        type=str)
     parser.add_argument("--bert_model_dir",
-                         default=bert_model_dir,
-                         type=str)
+                        default=bert_model_dir,
+                        type=str)
 
     parser.add_argument('--seed',
                         type=int,
@@ -58,7 +55,6 @@ def get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, l
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequences longer than this will be truncated, and sequences shorter \n"
                              "than this will be padded.")
-
 
     # 训练参数
     parser.add_argument("--train_batch_size",
@@ -87,9 +83,9 @@ def get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, l
                         default=0.1,
                         type=float,
                         help="Proportion of training to perform linear learning rate warmup for. "
-                        "E.g., 0.1 = 10%% of training.")
+                             "E.g., 0.1 = 10%% of training.")
     # optimizer 参数
-    parser.add_argument("--learning_rate", 
+    parser.add_argument("--learning_rate",
                         default=5e-5,
                         type=float,
                         help="Adam 的 学习率")
@@ -104,9 +100,8 @@ def get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, l
                         type=int,
                         default=50,
                         help="多少步进行模型保存以及日志信息写入")
-     
-    parser.add_argument("--early_stop", type=int, default=50, help="提前终止，多少次dev loss 连续增大，就不再训练")
 
+    parser.add_argument("--early_stop", type=int, default=50, help="提前终止，多少次dev loss 连续增大，就不再训练")
 
     parser.add_argument("--gpu_ids", type=str, default="0", help="gpu 的设备id")
     config = parser.parse_args()

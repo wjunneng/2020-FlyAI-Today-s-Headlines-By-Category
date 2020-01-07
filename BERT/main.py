@@ -15,7 +15,6 @@ from pytorch_transformers import BertTokenizer
 from pytorch_transformers import BertConfig, WEIGHTS_NAME, CONFIG_NAME
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
-import args as arguments
 from Utils.utils import get_device
 from Utils.load_datatsets import load_data
 from Utils.train_evalute import train, evaluate_save
@@ -27,9 +26,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
-remote_helper.get_remote_date("https://www.flyai.com/m/chinese_base.zip")
-shutil.copyfile(os.path.join(os.getcwd(), 'vocab.txt'),
-                os.path.join(os.getcwd(), arguments.pretrained_bert_name, 'vocab.txt'))
+# remote_helper.get_remote_date("https://www.flyai.com/m/chinese_base.zip")
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -47,6 +44,8 @@ class Instructor(object):
         self.args = parser.parse_args()
         self.arguments = arguments
         self.dataset = Dataset(epochs=self.args.EPOCHS, batch=self.args.BATCH, val_batch=self.args.BATCH)
+        shutil.copyfile(os.path.join(os.getcwd(), 'vocab.txt'),
+                        os.path.join(os.getcwd(), arguments.pretrained_bert_name, 'vocab.txt'))
 
     def run(self, model_times, label_list):
         if not os.path.exists(self.arguments.output_dir + model_times):
@@ -216,39 +215,54 @@ class Instructor(object):
 
 
 if __name__ == '__main__':
-    if arguments.model_name == "BertATT":
+    model_name = 'BertOrigin'
+
+    if model_name == "BertATT":
         from BertATT import args
 
-    elif arguments.model_name == "BertCNN":
+    elif model_name == "BertCNN":
         from BertCNN import args
 
-    elif arguments.model_name == 'BertCNNPlus':
+    elif model_name == 'BertCNNPlus':
         from BertCNNPlus import args
 
-    elif arguments.model_name == 'BertHAN':
+    elif model_name == 'BertHAN':
         from BertHAN import args
 
-    elif arguments.model_name == "BertRCNN":
+    elif model_name == "BertRCNN":
         from BertRCNN import args
 
-    elif arguments.model_name == "BertOrigin":
+    elif model_name == "BertOrigin":
         from BertOrigin import args
 
-    # 更新dict
-    arguments.update(args)
+    data_dir = os.path.join(os.getcwd(), "data/input")
+    output_dir = os.path.join(os.getcwd(), "data/output")
+    cache_dir = os.path.join(os.getcwd(), "data/cache")
+    log_dir = os.path.join(os.getcwd(), "data/log")
+    bert_vocab_file = os.path.join(os.getcwd(), 'data/input/model/vocab.txt')
+    bert_model_dir = os.path.join(os.getcwd(), 'data/input/model/pytorch_model.bin')
+    config = args.get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, log_dir)
 
-    if arguments.seed is not None:
-        random.seed(arguments.seed)
-        np.random.seed(arguments.seed)
-        torch.manual_seed(arguments.seed)
+    args.pretrained_bert_name = 'data/input/model'
+    args.seed = 42
+    args.dataset = 'toutiao'
+    args.log_path = 'data/log'
+    args.label_list = ['news_culture', 'news_entertainment', 'news_sports', 'news_finance', 'news_house', 'news_car',
+                       'news_edu', 'news_tech', 'news_military', 'news_travel', 'news_world', 'news_agriculture',
+                       'news_game', 'stock', 'news_story']
+
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    log_path = os.path.join(os.getcwd(), arguments.log_path)
+    log_path = os.path.join(os.getcwd(), args.log_path)
     if os.path.exists(log_path) is False:
         os.mkdir(log_path)
-    log_file = '{}-{}-{}.log'.format(arguments.model_name, arguments.dataset, strftime('%y%m%d-%H%M', localtime()))
+    log_file = '{}-{}-{}.log'.format(model_name, args.dataset, strftime('%y%m%d-%H%M', localtime()))
     logger.addHandler(logging.FileHandler(os.path.join(log_path, log_file)))
 
-    instructor = Instructor(arguments)
-    instructor.run()
+    instructor = Instructor(args)
+    instructor.run(model_times=args.save_name, label_list=args.label_list)

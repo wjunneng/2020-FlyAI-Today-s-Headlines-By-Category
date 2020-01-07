@@ -4,7 +4,6 @@ import argparse
 
 
 def get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, log_dir):
-
     parser = argparse.ArgumentParser(description='BERT Baseline')
 
     parser.add_argument("--model_name", default="BertCNNPlus",
@@ -85,7 +84,7 @@ def get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, l
                         default=0.1,
                         type=float,
                         help="Proportion of training to perform linear learning rate warmup for. "
-                        "E.g., 0.1 = 10%% of training.")
+                             "E.g., 0.1 = 10%% of training.")
     # optimizer 参数
     parser.add_argument("--learning_rate",
                         default=5e-5,
@@ -103,7 +102,7 @@ def get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, l
                         default=200,
                         help="多少步进行模型保存以及日志信息写入")
 
-    #CNN 参数
+    # CNN 参数
     parser.add_argument("--filter_num", default=50,
                         type=int, help="filter 的数量")
     parser.add_argument("--filter_sizes", default="1 2 3 4 5 6 7 8 9 10 11",

@@ -2,7 +2,6 @@
 
 from pytorch_pretrained_bert.modeling import BertModel, BertPreTrainedModel
 
-import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F

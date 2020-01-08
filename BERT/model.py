@@ -4,11 +4,11 @@ import sys
 
 os.chdir(sys.path[0])
 import torch
-import args
 from flyai.model.base import Base
 from pytorch_transformers import BertConfig
 from pytorch_transformers import BertTokenizer
 
+import args
 from net import Net
 from utils import Util
 

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-from pytorch_transformers.modeling_bert import BertModel, BertPreTrainedModel
-
 from torch import nn
 from torch.nn import CrossEntropyLoss
+from pytorch_transformers.modeling_bert import BertModel, BertPreTrainedModel
 
 
 class Net(BertPreTrainedModel):

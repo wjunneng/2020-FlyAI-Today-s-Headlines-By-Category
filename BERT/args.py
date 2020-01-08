@@ -98,7 +98,7 @@ def get_args():
                         help="Set this flag if you are using an uncased model.")
 
     parser.add_argument("--max_seq_length",
-                        default=24,
+                        default=32,
                         type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequences longer than this will be truncated, and sequences shorter \n"
@@ -124,7 +124,7 @@ def get_args():
 
     parser.add_argument('--print_step',
                         type=int,
-                        default=5,
+                        default=10,
                         help="多少步进行模型保存以及日志信息写入")
 
     parser.add_argument("--early_stop",

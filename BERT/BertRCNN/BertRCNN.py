@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 
-from Models.Linear import Linear
+from layers import Linear
 
 
 class BertRCNN(BertPreTrainedModel):

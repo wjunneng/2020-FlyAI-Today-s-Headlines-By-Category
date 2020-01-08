@@ -23,7 +23,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
-# remote_helper.get_remote_date("https://www.flyai.com/m/chinese_base.zip")
+remote_helper.get_remote_date("https://www.flyai.com/m/chinese_base.zip")
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -70,6 +70,7 @@ class Instructor(object):
         train_category, dev_category = category[index[0:int(len(index) * 0.9)]], category[
             index[int(len(index) * 0.9):]]
 
+        logger.info('>>train.shape: {} | dev.shape: {}'.format(train_category.shape, dev_category.shape))
         train_dataloader, train_examples_len = Util.load_data(news=train_news, category=train_category,
                                                               data_type='train',
                                                               label_list=self.arguments.label_list,
@@ -86,7 +87,7 @@ class Instructor(object):
             train_examples_len / self.args.BATCH / self.arguments.gradient_accumulation_steps) * self.args.EPOCHS
 
         # 模型准备
-        print("model name is {}".format(self.arguments.model_name))
+        logger.info("model name is {}".format(self.arguments.model_name))
         if self.arguments.model_name == "BertOrigin":
             from BertOrigin.BertOrigin import BertOrigin
             model = BertOrigin.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
@@ -153,7 +154,7 @@ class Instructor(object):
             if early_stop_times >= self.arguments.early_stop * (train_examples_len // self.args.BATCH):
                 break
 
-            print(f'---------------- Epoch: {epoch + 1:02} ----------')
+            logger.info(f'---------------- Epoch: {epoch + 1:02} ----------')
             epoch_loss, train_steps = 0, 0
 
             all_preds = np.array([], dtype=int)
@@ -162,12 +163,14 @@ class Instructor(object):
             scheduler.step()
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 model.train()
+                model.zero_grad()
 
                 batch = tuple(t.to(DEVICE) for t in batch)
                 _, input_ids, input_mask, segment_ids, label_ids = batch
 
                 logits = model(input_ids, segment_ids, input_mask, labels=None)
                 loss = criterion(logits.view(-1, self.arguments.num_labels), label_ids.view(-1))
+                logger.info('\n>>train_loss: {}'.format(loss))
                 train_steps += 1
                 loss.backward()
 
@@ -180,16 +183,12 @@ class Instructor(object):
                 all_labels = np.append(all_labels, label_ids)
 
                 optimizer.step()
-                optimizer.zero_grad()
                 global_step += 1
 
                 if global_step % self.arguments.print_step == 0 and global_step != 0:
                     dev_loss, dev_acc, dev_report, dev_auc = Util.evaluate(model, dev_dataloader, criterion, DEVICE,
                                                                            self.arguments.label_list)
-
-                    logger.info(
-                        'dev_loss:{}, dev_acc:{}, dev_report:{}, dev_auc:{}'.format(dev_loss, dev_acc, dev_report,
-                                                                                    dev_auc))
+                    logger.info('\n>>>dev report: \n{}'.format(dev_report))
                     # 以 acc 取优
                     if dev_acc > best_acc:
                         best_acc = dev_acc

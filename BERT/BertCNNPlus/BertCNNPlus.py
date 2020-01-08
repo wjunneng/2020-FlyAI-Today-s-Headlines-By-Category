@@ -7,8 +7,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 
-from Models.Conv import Conv1d
-from Models.Linear import Linear
+from layers import Conv1d
 
 
 class BertCNNPlus(BertPreTrainedModel):

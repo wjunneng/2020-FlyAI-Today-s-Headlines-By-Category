@@ -79,7 +79,7 @@ class Util(object):
                                                labels=labels_list_indices,
                                                target_names=label_list,
                                                digits=5,
-                                               output_dict=True)
+                                               output_dict=False)
 
         if len(label_list) > 2:
             auc = 0.5
@@ -205,9 +205,6 @@ class ClassifierUtil(object):
 
         features = []
         for (ex_index, example) in enumerate(examples):
-            if ex_index % 10000 == 0:
-                print("Writing example {} of {}".format(ex_index, len(examples)))
-
             tokens_a = tokenizer.tokenize(example.text_a)  # 分词
 
             tokens_b = None

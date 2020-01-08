@@ -15,6 +15,7 @@ from time import strftime, localtime
 from pytorch_transformers import BertTokenizer
 from pytorch_transformers import WEIGHTS_NAME, CONFIG_NAME
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
+from pytorch_transformers import BertConfig
 
 from BERT.Utils.utils import evaluate
 from BERT.Utils.load_datatsets import load_data
@@ -204,13 +205,21 @@ class Instructor(object):
                         if dev_auc > best_auc:
                             best_auc = dev_auc
 
+                        # 保存模型
                         model_to_save = model.module if hasattr(model, 'module') else model
                         torch.save(model_to_save.state_dict(), output_model_file)
                         with open(output_config_file, 'w') as f:
                             f.write(model_to_save.config.to_json_string())
+
                         early_stop_times = 0
                     else:
                         early_stop_times += 1
+
+        if os.path.exists(output_config_file) is False:
+            model_to_save = model.module if hasattr(model, 'module') else model
+            torch.save(model_to_save.state_dict(), output_model_file)
+            with open(output_config_file, 'w') as f:
+                f.write(model_to_save.config.to_json_string())
 
 
 if __name__ == '__main__':
@@ -271,28 +280,7 @@ if __name__ == '__main__':
     instructor = Instructor(args)
     instructor.run()
 
-# 加载模型
 # bert_config = BertConfig(output_config_file)
-#
-# if self.arguments.model_name == "BertOrigin":
-#     from BertOrigin.BertOrigin import BertOrigin
-#     model = BertOrigin(config=bert_config)
-# elif self.arguments.model_name == "BertCNN":
-#     from BertCNN.BertCNN import BertCNN
-#     filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
-#     model = BertCNN(config=bert_config, n_filters=self.arguments.filter_num, filter_sizes=filter_sizes)
-# elif self.arguments.model_name == "BertATT":
-#     from BertATT.BertATT import BertATT
-#     model = BertATT(config=bert_config)
-# elif self.arguments.model_name == "BertRCNN":
-#     from BertRCNN.BertRCNN import BertRCNN
-#     model = BertRCNN(config=bert_config, rnn_hidden_size=self.arguments.hidden_size,
-#                      num_layers=self.arguments.num_layers,
-#                      bidirectional=self.arguments.bidirectional, dropout=self.arguments.dropout)
-# elif self.arguments.model_name == "BertCNNPlus":
-#     from BertCNNPlus.BertCNNPlus import BertCNNPlus
-#     filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
-#     model = BertCNNPlus(config=bert_config, n_filters=self.arguments.filter_num, filter_sizes=filter_sizes)
 # 损失函数准备
 # model.load_state_dict(torch.load(output_model_file))
 # model.to(device)

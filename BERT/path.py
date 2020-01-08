@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*
 import sys
-
 import os
 
 # 训练数据的路径

@@ -4,24 +4,20 @@ import os
 
 os.chdir(sys.path[0])
 import random
-import numpy as np
 import argparse
 import shutil
 import logging
 import torch
-from tqdm import tqdm
+import numpy as np
 import torch.nn as nn
+from tqdm import tqdm
 from time import strftime, localtime
 from pytorch_transformers import BertTokenizer
-from pytorch_transformers import WEIGHTS_NAME, CONFIG_NAME
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
-from pytorch_transformers import BertConfig
-
-from BERT.Utils.utils import evaluate
-from BERT.Utils.load_datatsets import load_data
-
 from flyai.utils import remote_helper
 from flyai.dataset import Dataset
+
+from utils import Util
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -40,23 +36,19 @@ class Instructor(object):
     def __init__(self, arguments):
         # 项目的超参
         parser = argparse.ArgumentParser()
-        parser.add_argument("-e", "--EPOCHS", default=50, type=int, help="train epochs")
-        parser.add_argument("-b", "--BATCH", default=10, type=int, help="batch size")
+        parser.add_argument("-e", "--EPOCHS", default=10, type=int, help="train epochs")
+        parser.add_argument("-b", "--BATCH", default=2, type=int, help="batch size")
         self.args = parser.parse_args()
         self.arguments = arguments
         self.dataset = Dataset(epochs=self.args.EPOCHS, batch=self.args.BATCH, val_batch=self.args.BATCH)
         shutil.copyfile(os.path.join(os.getcwd(), 'vocab.txt'),
-                        os.path.join(os.getcwd(), arguments.pretrained_bert_name, 'vocab.txt'))
+                        os.path.join(arguments.bert_model_dir, 'vocab.txt'))
 
     def run(self):
         if not os.path.exists(self.arguments.output_dir):
             os.mkdir(self.arguments.output_dir)
 
-        # Bert 模型输出文件
-        output_model_file = os.path.join(self.arguments.output_dir, WEIGHTS_NAME)
-        output_config_file = os.path.join(self.arguments.output_dir, CONFIG_NAME)
-
-        self.arguments.train_batch_size = self.arguments.train_batch_size // self.arguments.gradient_accumulation_steps
+        self.args.BATCH = self.args.BATCH // self.arguments.gradient_accumulation_steps
 
         # 设定随机种子
         random.seed(self.arguments.seed)
@@ -78,20 +70,20 @@ class Instructor(object):
         train_category, dev_category = category[index[0:int(len(index) * 0.9)]], category[
             index[int(len(index) * 0.9):]]
 
-        train_dataloader, train_examples_len = load_data(news=train_news, category=train_category,
-                                                         data_type='train',
-                                                         label_list=self.arguments.label_list,
-                                                         max_length=self.arguments.max_length,
-                                                         tokenizer=tokenizer,
-                                                         batch_size=self.args.BATCH)
-        dev_dataloader, dev_examples_len = load_data(news=dev_news, category=dev_category, data_type='dev',
-                                                     label_list=self.arguments.label_list,
-                                                     max_length=self.arguments.max_length,
-                                                     tokenizer=tokenizer,
-                                                     batch_size=self.args.BATCH)
+        train_dataloader, train_examples_len = Util.load_data(news=train_news, category=train_category,
+                                                              data_type='train',
+                                                              label_list=self.arguments.label_list,
+                                                              max_length=self.arguments.max_seq_length,
+                                                              tokenizer=tokenizer,
+                                                              batch_size=self.args.BATCH)
+        dev_dataloader, dev_examples_len = Util.load_data(news=dev_news, category=dev_category, data_type='dev',
+                                                          label_list=self.arguments.label_list,
+                                                          max_length=self.arguments.max_seq_length,
+                                                          tokenizer=tokenizer,
+                                                          batch_size=self.args.BATCH)
 
         num_train_optimization_steps = int(
-            train_examples_len / self.arguments.train_batch_size / self.arguments.gradient_accumulation_steps) * self.arguments.num_train_epochs
+            train_examples_len / self.args.BATCH / self.arguments.gradient_accumulation_steps) * self.args.EPOCHS
 
         # 模型准备
         print("model name is {}".format(self.arguments.model_name))
@@ -192,8 +184,8 @@ class Instructor(object):
                 global_step += 1
 
                 if global_step % self.arguments.print_step == 0 and global_step != 0:
-                    dev_loss, dev_acc, dev_report, dev_auc = evaluate(model, dev_dataloader, criterion, DEVICE,
-                                                                      self.arguments.label_list)
+                    dev_loss, dev_acc, dev_report, dev_auc = Util.evaluate(model, dev_dataloader, criterion, DEVICE,
+                                                                           self.arguments.label_list)
 
                     logger.info(
                         'dev_loss:{}, dev_acc:{}, dev_report:{}, dev_auc:{}'.format(dev_loss, dev_acc, dev_report,
@@ -207,23 +199,23 @@ class Instructor(object):
 
                         # 保存模型
                         model_to_save = model.module if hasattr(model, 'module') else model
-                        torch.save(model_to_save.state_dict(), output_model_file)
-                        with open(output_config_file, 'w') as f:
+                        torch.save(model_to_save.state_dict(), self.arguments.output_model_file)
+                        with open(self.arguments.output_config_file, 'w') as f:
                             f.write(model_to_save.config.to_json_string())
 
                         early_stop_times = 0
                     else:
                         early_stop_times += 1
 
-        if os.path.exists(output_config_file) is False:
+        if os.path.exists(self.arguments.output_config_file) is False:
             model_to_save = model.module if hasattr(model, 'module') else model
-            torch.save(model_to_save.state_dict(), output_model_file)
-            with open(output_config_file, 'w') as f:
+            torch.save(model_to_save.state_dict(), self.arguments.output_model_file)
+            with open(self.arguments.output_config_file, 'w') as f:
                 f.write(model_to_save.config.to_json_string())
 
 
 if __name__ == '__main__':
-    model_name = 'BertCNN'
+    model_name = 'BertOrigin'
     args = None
     if model_name == "BertATT":
         from BertATT import args
@@ -241,27 +233,10 @@ if __name__ == '__main__':
         from BertRCNN import args
 
     elif model_name == "BertOrigin":
-        from BertOrigin import args
+        import args
 
-    data_dir = os.path.join(os.getcwd(), "data/input")
-    output_dir = os.path.join(os.getcwd(), "data/output")
-    cache_dir = os.path.join(os.getcwd(), "data/cache")
-    log_dir = os.path.join(os.getcwd(), "data/log")
-    bert_vocab_file = os.path.join(os.getcwd(), 'data/input/model/vocab.txt')
-    bert_model_dir = os.path.join(os.getcwd(), 'data/input/model')
-    args = args.get_args(data_dir, output_dir, cache_dir, bert_vocab_file, bert_model_dir, log_dir)
+    args = args.get_args()
 
-    args.pretrained_bert_name = 'data/input/model'
-    args.seed = 42
-    args.max_length = 64
-    args.print_step = 5
-    args.early_stop = 5
-    args.gradient_accumulation_steps = 1
-    args.dataset = 'toutiao'
-    args.log_path = 'data/log'
-    args.label_list = ['news_culture', 'news_entertainment', 'news_sports', 'news_finance', 'news_house', 'news_car',
-                       'news_edu', 'news_tech', 'news_military', 'news_travel', 'news_world', 'news_agriculture',
-                       'news_game', 'stock', 'news_story']
     args.num_labels = len(args.label_list)
 
     if args.seed is not None:
@@ -271,32 +246,10 @@ if __name__ == '__main__':
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    log_path = os.path.join(os.getcwd(), args.log_path)
-    if os.path.exists(log_path) is False:
-        os.mkdir(log_path)
-    log_file = '{}-{}-{}.log'.format(model_name, args.dataset, strftime('%y%m%d-%H%M', localtime()))
-    logger.addHandler(logging.FileHandler(os.path.join(log_path, log_file)))
+    if os.path.exists(args.log_dir) is False:
+        os.mkdir(args.log_dir)
+    log_file = '{}-{}-{}.log'.format(model_name, args.data_type, strftime('%y%m%d-%H%M', localtime()))
+    logger.addHandler(logging.FileHandler(os.path.join(args.log_dir, log_file)))
 
     instructor = Instructor(args)
     instructor.run()
-
-# bert_config = BertConfig(output_config_file)
-# 损失函数准备
-# model.load_state_dict(torch.load(output_model_file))
-# model.to(device)
-# criterion = nn.CrossEntropyLoss()
-# criterion = criterion.to(device)
-# # test the model
-# test_loss, test_acc, test_report, test_auc, all_idx, all_labels, all_preds = evaluate_save(
-#     model, test_dataloader, criterion, device, self.arguments.label_list)
-# print("-------------- Test -------------")
-# print(f'\t  Loss: {test_loss: .3f} | Acc: {test_acc * 100: .3f} % | AUC:{test_auc}')
-#
-# for label in self.arguments.label_list:
-#     print('\t {}: Precision: {} | recall: {} | f1 score: {}'.format(
-#         label, test_report[label]['precision'], test_report[label]['recall'], test_report[label]['f1-score']))
-# print_list = ['macro avg', 'weighted avg']
-#
-# for label in print_list:
-#     print('\t {}: Precision: {} | recall: {} | f1 score: {}'.format(
-#         label, test_report[label]['precision'], test_report[label]['recall'], test_report[label]['f1-score']))

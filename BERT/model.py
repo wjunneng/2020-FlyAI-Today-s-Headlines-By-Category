@@ -20,7 +20,7 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 class Model(Base):
     def __init__(self, data):
         self.data = data
-        self.args = args.get_args()
+        self.args = args
         bert_config = BertConfig(self.args.output_config_file)
 
         if os.path.exists(self.args.output_model_file):
@@ -52,7 +52,7 @@ class Model(Base):
             with torch.no_grad():
                 logits = self.model(input_ids, segment_ids, input_mask, labels=None)
 
-        return torch.argmax(logits.view(-1, len(self.args.label_list))).cpu().numpy().tolist()
+        return self.data.to_categorys(torch.argmax(logits.view(-1, len(self.args.label_list))).cpu().numpy().tolist())
 
     def predict_all(self, datas):
         labels = []

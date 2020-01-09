@@ -12,7 +12,7 @@ import args
 from net import Net
 from utils import Util
 
-__import__('net', fromlist=["Net"])
+# __import__('net', fromlist=["Net"])
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 

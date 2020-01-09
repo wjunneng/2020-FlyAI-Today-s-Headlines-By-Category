@@ -18,6 +18,8 @@ from flyai.utils import remote_helper
 from flyai.dataset import Dataset
 
 from utils import Util
+from net import Net
+import args
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -54,7 +56,7 @@ class Instructor(object):
         # 数据准备  分词器选择
         tokenizer = BertTokenizer(self.arguments.bert_vocab_file).from_pretrained(self.arguments.bert_model_dir,
                                                                                   do_lower_case=self.arguments.do_lower_case)
-
+        # 获取数据 news/keywords
         news, category, _, _ = self.dataset.get_all_data()
         news = np.asarray([i['news'] for i in news])
         category = np.asarray([i['category'] for i in category])
@@ -84,42 +86,44 @@ class Instructor(object):
         # 模型准备
         logger.info("model name is {}".format(self.arguments.model_name))
         if self.arguments.model_name == "BertOrigin":
-            from BertOrigin.BertOrigin import BertOrigin
-            model = BertOrigin.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                               num_labels=self.arguments.num_labels,
-                                               cache_dir=self.arguments.cache_dir)
+            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                        num_labels=self.arguments.num_labels,
+                                        cache_dir=self.arguments.cache_dir)
+
+        elif self.arguments.model_name == 'BertHAN':
+            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                        num_labels=self.arguments.num_labels,
+                                        cache_dir=self.arguments.cache_dir)
+
         elif self.arguments.model_name == "BertCNN":
-            from BertCNN.BertCNN import BertCNN
             filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
-            model = BertCNN.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                            num_labels=self.arguments.num_labels,
-                                            n_filters=self.arguments.filter_num,
-                                            filter_sizes=filter_sizes,
-                                            cache_dir=self.arguments.cache_dir)
+            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                        num_labels=self.arguments.num_labels,
+                                        n_filters=self.arguments.filter_num,
+                                        filter_sizes=filter_sizes,
+                                        cache_dir=self.arguments.cache_dir)
+
         elif self.arguments.model_name == "BertATT":
-            from BertATT.BertATT import BertATT
-            model = BertATT.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                            num_labels=self.arguments.num_labels,
-                                            cache_dir=self.arguments.cache_dir)
+            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                        num_labels=self.arguments.num_labels,
+                                        cache_dir=self.arguments.cache_dir)
 
         elif self.arguments.model_name == "BertRCNN":
-            from BertRCNN.BertRCNN import BertRCNN
-            model = BertRCNN.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                             num_labels=self.arguments.num_labels,
-                                             cache_dir=self.arguments.cache_dir,
-                                             rnn_hidden_size=self.arguments.hidden_size,
-                                             num_layers=self.arguments.num_layers,
-                                             bidirectional=self.arguments.bidirectional,
-                                             dropout=self.arguments.dropout)
+            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                        num_labels=self.arguments.num_labels,
+                                        cache_dir=self.arguments.cache_dir,
+                                        rnn_hidden_size=self.arguments.hidden_size,
+                                        num_layers=self.arguments.num_layers,
+                                        bidirectional=self.arguments.bidirectional,
+                                        dropout=self.arguments.dropout)
 
         elif self.arguments.model_name == "BertCNNPlus":
-            from BertCNNPlus.BertCNNPlus import BertCNNPlus
             filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
-            model = BertCNNPlus.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                                num_labels=self.arguments.num_labels,
-                                                cache_dir=self.arguments.cache_dir,
-                                                n_filters=self.arguments.filter_num,
-                                                filter_sizes=filter_sizes)
+            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                        num_labels=self.arguments.num_labels,
+                                        cache_dir=self.arguments.cache_dir,
+                                        n_filters=self.arguments.filter_num,
+                                        filter_sizes=filter_sizes)
 
         model.to(DEVICE)
 
@@ -214,38 +218,31 @@ class Instructor(object):
 
 
 if __name__ == '__main__':
-    model_name = 'BertOrigin'
+    # 1.
+    # model_name = 'BertOrigin'
+    # save_name = 'BertOrigin'
+
+    # 2.
+    model_name = 'BertATT'
+    save_name = 'BertATT'
+
+    # 3.
+    # model_name = 'BertHAN'
+    # save_name = 'BertHAN'
 
     parser = argparse.ArgumentParser(description='BERT Baseline')
     # 训练轮数
-    parser.add_argument("-e", "--EPOCHS", default=2, type=int, help="train epochs")
+    parser.add_argument("-e", "--EPOCHS", default=10, type=int, help="train epochs")
     # 批量大小
-    parser.add_argument("-b", "--BATCH", default=512, type=int, help="batch size")
+    parser.add_argument("-b", "--BATCH", default=2, type=int, help="batch size")
 
     config = parser.parse_args()
-
-    args = None
-    if model_name == "BertATT":
-        from BertATT import args
-
-    elif model_name == "BertCNN":
-        from BertCNN import args
-
-    elif model_name == 'BertCNNPlus':
-        from BertCNNPlus import args
-
-    elif model_name == 'BertHAN':
-        from BertHAN import args
-
-    elif model_name == "BertRCNN":
-        from BertRCNN import args
-
-    elif model_name == "BertOrigin":
-        import args
 
     args.num_labels = len(args.label_list)
     args.EPOCHS = config.EPOCHS
     args.BATCH = config.BATCH
+    args.model_name = model_name
+    args.save_name = save_name
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -256,7 +253,7 @@ if __name__ == '__main__':
 
     if os.path.exists(args.log_dir) is False:
         os.mkdir(args.log_dir)
-    log_file = '{}-{}-{}.log'.format(model_name, args.data_type, strftime('%y%m%d-%H%M', localtime()))
+    log_file = '{}-{}-{}.log'.format(args.model_name, args.data_type, strftime('%y%m%d-%H%M', localtime()))
     logger.addHandler(logging.FileHandler(os.path.join(args.log_dir, log_file)))
 
     instructor = Instructor(args)

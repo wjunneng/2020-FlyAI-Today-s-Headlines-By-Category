@@ -16,8 +16,6 @@ bert_model_dir = os.path.join(os.getcwd(), 'data/input/model')
 output_model_file = os.path.join(output_dir, WEIGHTS_NAME)
 output_config_file = os.path.join(output_dir, CONFIG_NAME)
 
-model_name = 'BertOrigin'
-save_name = 'BertOrigin'
 seed = 42
 data_type = 'toutiao'
 label_list = ['news_culture', 'news_entertainment', 'news_sports', 'news_finance', 'news_house',

@@ -7,6 +7,22 @@ os.chdir(sys.path[0])
 
 from pytorch_transformers import WEIGHTS_NAME, CONFIG_NAME
 
+# 1.BertOrigin
+# model_name = 'BertOrigin'
+# save_name = 'BertOrigin'
+
+# 2.BertATT
+# model_name = 'BertATT'
+# save_name = 'BertATT'
+
+# 3.BertCNNPlus
+# model_name = 'BertCNNPlus'
+# save_name = 'BertCNNPlus'
+
+# 4.BertRCNN
+model_name = 'BertRCNN'
+save_name = 'BertRCNN'
+
 data_dir = os.path.join(os.getcwd(), "data/input")
 output_dir = os.path.join(os.getcwd(), "data/output")
 cache_dir = os.path.join(os.getcwd(), "data/cache")
@@ -29,6 +45,16 @@ learning_rate = 5e-5
 gradient_accumulation_steps = 1
 print_step = 10
 early_stop = 5
+
+# CNN 参数
+filter_num = 250
+filter_sizes = "1 2 3 4 5 6 7 8 9 10 11"
+
+# textRnn 参数
+rnn_hidden_size = 300
+num_layers = 2
+bidirectional = True
+dropout = 0.2
 
 # def get_args():
 #     import argparse

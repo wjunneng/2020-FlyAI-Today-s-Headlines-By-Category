@@ -24,6 +24,15 @@ class Model(Base):
         bert_config = BertConfig(self.args.output_config_file)
 
         if os.path.exists(self.args.output_model_file):
+            if self.args.model_name == 'BertCNNPlus':
+                bert_config.filter_num = self.args.filter_num
+                bert_config.filter_sizes = [int(val) for val in self.args.filter_sizes.split()]
+            elif self.args.model_name == 'BertRCNN':
+                bert_config.rnn_hidden_size = self.args.rnn_hidden_size
+                bert_config.num_layers = self.args.num_layers
+                bert_config.bidirectional = self.args.bidirectional
+                bert_config.dropout = self.args.dropout
+
             self.model = Net(config=bert_config)
             self.model.load_state_dict(torch.load(self.args.output_model_file))
             self.model.to(DEVICE)

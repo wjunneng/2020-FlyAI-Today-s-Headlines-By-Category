@@ -112,7 +112,7 @@ class Instructor(object):
             model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
                                         num_labels=self.arguments.num_labels,
                                         cache_dir=self.arguments.cache_dir,
-                                        rnn_hidden_size=self.arguments.hidden_size,
+                                        rnn_hidden_size=self.arguments.rnn_hidden_size,
                                         num_layers=self.arguments.num_layers,
                                         bidirectional=self.arguments.bidirectional,
                                         dropout=self.arguments.dropout)
@@ -218,18 +218,6 @@ class Instructor(object):
 
 
 if __name__ == '__main__':
-    # 1.
-    # model_name = 'BertOrigin'
-    # save_name = 'BertOrigin'
-
-    # 2.
-    model_name = 'BertATT'
-    save_name = 'BertATT'
-
-    # 3.
-    # model_name = 'BertHAN'
-    # save_name = 'BertHAN'
-
     parser = argparse.ArgumentParser(description='BERT Baseline')
     # 训练轮数
     parser.add_argument("-e", "--EPOCHS", default=10, type=int, help="train epochs")
@@ -241,8 +229,6 @@ if __name__ == '__main__':
     args.num_labels = len(args.label_list)
     args.EPOCHS = config.EPOCHS
     args.BATCH = config.BATCH
-    args.model_name = model_name
-    args.save_name = save_name
 
     if args.seed is not None:
         random.seed(args.seed)

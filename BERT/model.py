@@ -4,6 +4,7 @@ import sys
 
 os.chdir(sys.path[0])
 import torch
+import numpy as np
 from flyai.model.base import Base
 from pytorch_transformers import BertConfig
 from pytorch_transformers import BertTokenizer
@@ -11,8 +12,7 @@ from pytorch_transformers import BertTokenizer
 import args
 from net import Net
 from utils import Util
-
-# __import__('net', fromlist=["Net"])
+from main import Instructor
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -21,8 +21,12 @@ class Model(Base):
     def __init__(self, data):
         self.data = data
         self.args = args
-        bert_config = BertConfig(self.args.output_config_file)
+        self.args.num_labels = len(self.args.label_list)
+        self.instructor = Instructor(arguments=self.args)
+        self.init()
 
+    def init(self):
+        bert_config = BertConfig(self.args.output_config_file)
         if os.path.exists(self.args.output_model_file):
             if self.args.model_name == 'BertCNNPlus':
                 bert_config.filter_num = self.args.filter_num
@@ -32,6 +36,8 @@ class Model(Base):
                 bert_config.num_layers = self.args.num_layers
                 bert_config.bidirectional = self.args.bidirectional
                 bert_config.dropout = self.args.dropout
+            else:
+                pass
 
             self.model = Net(config=bert_config)
             self.model.load_state_dict(torch.load(self.args.output_model_file))
@@ -70,4 +76,26 @@ class Model(Base):
 
             labels.append(predicts)
 
+        if self.args.use_pseudo_labeling:
+            self.pseudo_labeling(datas=datas, labels=labels)
+
         return labels
+
+    def pseudo_labeling(self, datas, labels):
+        news = np.asarray([i['news'] for i in datas])
+        category = np.asarray(labels)
+        train_news, train_category, dev_news, dev_category = self.instructor.generate()
+
+        train_news = np.concatenate([train_news, news])
+        train_category = np.concatenate([train_category, category])
+
+        np.random.shuffle(train_news)
+        np.random.shuffle(train_category)
+
+        self.instructor.train(Net=self.model, train_category=train_category, dev_category=dev_category,
+                              train_news=train_news,
+                              dev_news=dev_news, tokenizer=self.tokenizer)
+        self.init()
+
+        self.args.use_pseudo_labeling = False
+        self.predict_all(datas=[{'news': i} for i in news])

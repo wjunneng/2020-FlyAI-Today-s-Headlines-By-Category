@@ -41,64 +41,64 @@ from layers import Linear
 
 # ########################################## BERTATT
 
-# class Net(BertPreTrainedModel):
-#     """BERT model for classification.
-#     This module is composed of the BERT model with a linear layer on top of
-#     the pooled output.
-#
-#     Params:
-#         `config`: a BertConfig class instance with the configuration to build a new model.
-#         `num_labels`: the number of classes for the classifier. Default = 2.
-#     """
-#
-#     def __init__(self, config):
-#         super(Net, self).__init__(config)
-#         self.num_labels = config.num_labels
-#         self.bert = BertModel(config)
-#         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-#         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
-#
-#         self.W_w = nn.Parameter(torch.Tensor(config.hidden_size, config.hidden_size))
-#         self.u_w = nn.Parameter(torch.Tensor(config.hidden_size, 1))
-#
-#         nn.init.uniform_(self.W_w, -0.1, 0.1)
-#         nn.init.uniform_(self.u_w, -0.1, 0.1)
-#
-#         self.init_weights()
-#
-#     def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None):
-#         """
-#         Args:
-#             input_ids: 词对应的 id
-#             token_type_ids: 区分句子，0 为第一句，1表示第二句
-#             attention_mask: 区分 padding 与 token， 1表示是token，0 为padding
-#         """
-#         encoded_layers, _ = self.bert(input_ids, token_type_ids, attention_mask)
-#
-#         # encoded_layers: [batch_size, seq_len, bert_dim=768]
-#         encoded_layers = self.dropout(encoded_layers)
-#
-#         # score: [batch_size, seq_len, bert_dim]
-#         score = torch.tanh(torch.matmul(encoded_layers, self.W_w))
-#
-#         # attention_weights: [batch_size, seq_len, 1]
-#         attention_weights = F.softmax(torch.matmul(score, self.u_w), dim=1)
-#
-#         # scored_x : [batch_size, seq_len, bert_dim]
-#         scored_x = encoded_layers * attention_weights
-#
-#         # feat: [batch_size, bert_dim=768]
-#         feat = torch.sum(scored_x, dim=1)
-#
-#         # logits: [batch_size, output_dim]
-#         logits = self.classifier(feat)
-#
-#         if labels is not None:
-#             loss_fct = CrossEntropyLoss()
-#             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-#             return loss
-#         else:
-#             return logits
+class Net(BertPreTrainedModel):
+    """BERT model for classification.
+    This module is composed of the BERT model with a linear layer on top of
+    the pooled output.
+
+    Params:
+        `config`: a BertConfig class instance with the configuration to build a new model.
+        `num_labels`: the number of classes for the classifier. Default = 2.
+    """
+
+    def __init__(self, config):
+        super(Net, self).__init__(config)
+        self.num_labels = config.num_labels
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        self.W_w = nn.Parameter(torch.Tensor(config.hidden_size, config.hidden_size))
+        self.u_w = nn.Parameter(torch.Tensor(config.hidden_size, 1))
+
+        nn.init.uniform_(self.W_w, -0.1, 0.1)
+        nn.init.uniform_(self.u_w, -0.1, 0.1)
+
+        self.init_weights()
+
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None):
+        """
+        Args:
+            input_ids: 词对应的 id
+            token_type_ids: 区分句子，0 为第一句，1表示第二句
+            attention_mask: 区分 padding 与 token， 1表示是token，0 为padding
+        """
+        encoded_layers, _ = self.bert(input_ids, token_type_ids, attention_mask)
+
+        # encoded_layers: [batch_size, seq_len, bert_dim=768]
+        encoded_layers = self.dropout(encoded_layers)
+
+        # score: [batch_size, seq_len, bert_dim]
+        score = torch.tanh(torch.matmul(encoded_layers, self.W_w))
+
+        # attention_weights: [batch_size, seq_len, 1]
+        attention_weights = F.softmax(torch.matmul(score, self.u_w), dim=1)
+
+        # scored_x : [batch_size, seq_len, bert_dim]
+        scored_x = encoded_layers * attention_weights
+
+        # feat: [batch_size, bert_dim=768]
+        feat = torch.sum(scored_x, dim=1)
+
+        # logits: [batch_size, output_dim]
+        logits = self.classifier(feat)
+
+        if labels is not None:
+            loss_fct = CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            return loss
+        else:
+            return logits
 
 # ########################################## BERTCNNPlus
 
@@ -154,52 +154,52 @@ from layers import Linear
 
 # ########################################## BERTRCNN
 
-class Net(BertPreTrainedModel):
-
-    def __init__(self, config, rnn_hidden_size=None, num_layers=None, bidirectional=None, dropout=None):
-        super(Net, self).__init__(config)
-        self.num_labels = config.num_labels
-        self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-
-        if rnn_hidden_size is None:
-            rnn_hidden_size = config.rnn_hidden_size
-            num_layers = config.num_layers
-            bidirectional = config.bidirectional
-            dropout = config.dropout
-
-        self.rnn = nn.LSTM(config.hidden_size, rnn_hidden_size, num_layers,
-                           bidirectional=bidirectional, dropout=dropout, batch_first=True)
-        self.W2 = Linear(config.hidden_size + 2 * rnn_hidden_size, config.hidden_size)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
-
-        self.init_weights()
-
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None):
-        encoded_layers, _ = self.bert(input_ids, token_type_ids, attention_mask)
-
-        # encoded_layers: [batch_size, seq_len, bert_dim]
-        encoded_layers = self.dropout(encoded_layers)
-
-        # outputs: [batch_size, seq_len, rnn_hidden_size * 2]
-        outputs, _ = self.rnn(encoded_layers)
-
-        # x: [batch_size, seq_len, rnn_hidden_size * 2 + bert_dim]
-        x = torch.cat((outputs, encoded_layers), 2)
-
-        # y2: [batch_size, rnn_hidden_size * 2, seq_len]
-        y2 = torch.tanh(self.W2(x)).permute(0, 2, 1)
-
-        y3 = F.max_pool1d(y2, y2.size()[2]).squeeze(2)
-
-        logits = self.classifier(y3)
-
-        if labels is not None:
-            loss_fct = CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            return loss
-        else:
-            return logits
+# class Net(BertPreTrainedModel):
+#
+#     def __init__(self, config, rnn_hidden_size=None, num_layers=None, bidirectional=None, dropout=None):
+#         super(Net, self).__init__(config)
+#         self.num_labels = config.num_labels
+#         self.bert = BertModel(config)
+#         self.dropout = nn.Dropout(config.hidden_dropout_prob)
+#
+#         if rnn_hidden_size is None:
+#             rnn_hidden_size = config.rnn_hidden_size
+#             num_layers = config.num_layers
+#             bidirectional = config.bidirectional
+#             dropout = config.dropout
+#
+#         self.rnn = nn.LSTM(config.hidden_size, rnn_hidden_size, num_layers,
+#                            bidirectional=bidirectional, dropout=dropout, batch_first=True)
+#         self.W2 = Linear(config.hidden_size + 2 * rnn_hidden_size, config.hidden_size)
+#         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+#
+#         self.init_weights()
+#
+#     def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None):
+#         encoded_layers, _ = self.bert(input_ids, token_type_ids, attention_mask)
+#
+#         # encoded_layers: [batch_size, seq_len, bert_dim]
+#         encoded_layers = self.dropout(encoded_layers)
+#
+#         # outputs: [batch_size, seq_len, rnn_hidden_size * 2]
+#         outputs, _ = self.rnn(encoded_layers)
+#
+#         # x: [batch_size, seq_len, rnn_hidden_size * 2 + bert_dim]
+#         x = torch.cat((outputs, encoded_layers), 2)
+#
+#         # y2: [batch_size, rnn_hidden_size * 2, seq_len]
+#         y2 = torch.tanh(self.W2(x)).permute(0, 2, 1)
+#
+#         y3 = F.max_pool1d(y2, y2.size()[2]).squeeze(2)
+#
+#         logits = self.classifier(y3)
+#
+#         if labels is not None:
+#             loss_fct = CrossEntropyLoss()
+#             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+#             return loss
+#         else:
+#             return logits
 
 # ########################################## BERTHAN
 

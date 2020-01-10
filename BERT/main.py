@@ -8,14 +8,15 @@ import random
 import shutil
 import logging
 import torch
-import numpy as np
+import os
 import torch.nn as nn
 from tqdm import tqdm
+import numpy as np
 from time import strftime, localtime
 from pytorch_transformers import BertTokenizer
-from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 from flyai.utils import remote_helper
 from flyai.dataset import Dataset
+from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
 from utils import Util
 from net import Net
@@ -24,8 +25,6 @@ import args
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))
-
-remote_helper.get_remote_date("https://www.flyai.com/m/chinese_base.zip")
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -37,35 +36,10 @@ class Instructor(object):
 
     def __init__(self, arguments):
         self.arguments = arguments
-        self.dataset = Dataset(epochs=self.arguments.EPOCHS, batch=self.arguments.BATCH, val_batch=self.arguments.BATCH)
-        shutil.copyfile(os.path.join(os.getcwd(), 'vocab.txt'),
-                        os.path.join(arguments.bert_model_dir, 'vocab.txt'))
 
-    def run(self):
-        if not os.path.exists(self.arguments.output_dir):
-            os.mkdir(self.arguments.output_dir)
-
-        self.arguments.BATCH = self.arguments.BATCH // self.arguments.gradient_accumulation_steps
-
-        # 设定随机种子
-        random.seed(self.arguments.seed)
-        np.random.seed(self.arguments.seed)
-        torch.manual_seed(self.arguments.seed)
-        torch.cuda.manual_seed_all(self.arguments.seed)
-
-        # 数据准备  分词器选择
-        tokenizer = BertTokenizer(self.arguments.bert_vocab_file).from_pretrained(self.arguments.bert_model_dir,
-                                                                                  do_lower_case=self.arguments.do_lower_case)
-        # 获取数据 news/keywords
-        news, category, _, _ = self.dataset.get_all_data()
-        news = np.asarray([i['news'] for i in news])
-        category = np.asarray([i['category'] for i in category])
-
-        index = [i for i in range(len(news))]
-        np.random.shuffle(np.asarray(index))
-        train_news, dev_news = news[index[0:int(len(index) * 0.9)]], news[index[int(len(index) * 0.9):]]
-        train_category, dev_category = category[index[0:int(len(index) * 0.9)]], category[
-            index[int(len(index) * 0.9):]]
+    def train(self, train_category, dev_category, train_news, dev_news, tokenizer, Net=None, model=None):
+        if os.path.exists(self.arguments.output_config_file) is True:
+            os.remove(self.arguments.output_config_file)
 
         logger.info('>>train.shape: {} | dev.shape: {}'.format(train_category.shape, dev_category.shape))
         train_dataloader, train_examples_len = Util.load_data(news=train_news, category=train_category,
@@ -85,45 +59,47 @@ class Instructor(object):
 
         # 模型准备
         logger.info("model name is {}".format(self.arguments.model_name))
-        if self.arguments.model_name == "BertOrigin":
-            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                        num_labels=self.arguments.num_labels,
-                                        cache_dir=self.arguments.cache_dir)
 
-        elif self.arguments.model_name == 'BertHAN':
-            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                        num_labels=self.arguments.num_labels,
-                                        cache_dir=self.arguments.cache_dir)
+        if model is None:
+            if self.arguments.model_name == "BertOrigin":
+                model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                            num_labels=self.arguments.num_labels,
+                                            cache_dir=self.arguments.cache_dir)
 
-        elif self.arguments.model_name == "BertCNN":
-            filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
-            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                        num_labels=self.arguments.num_labels,
-                                        n_filters=self.arguments.filter_num,
-                                        filter_sizes=filter_sizes,
-                                        cache_dir=self.arguments.cache_dir)
+            elif self.arguments.model_name == 'BertHAN':
+                model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                            num_labels=self.arguments.num_labels,
+                                            cache_dir=self.arguments.cache_dir)
 
-        elif self.arguments.model_name == "BertATT":
-            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                        num_labels=self.arguments.num_labels,
-                                        cache_dir=self.arguments.cache_dir)
+            elif self.arguments.model_name == "BertCNN":
+                filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
+                model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                            num_labels=self.arguments.num_labels,
+                                            n_filters=self.arguments.filter_num,
+                                            filter_sizes=filter_sizes,
+                                            cache_dir=self.arguments.cache_dir)
 
-        elif self.arguments.model_name == "BertRCNN":
-            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                        num_labels=self.arguments.num_labels,
-                                        cache_dir=self.arguments.cache_dir,
-                                        rnn_hidden_size=self.arguments.rnn_hidden_size,
-                                        num_layers=self.arguments.num_layers,
-                                        bidirectional=self.arguments.bidirectional,
-                                        dropout=self.arguments.dropout)
+            elif self.arguments.model_name == "BertATT":
+                model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                            num_labels=self.arguments.num_labels,
+                                            cache_dir=self.arguments.cache_dir)
 
-        elif self.arguments.model_name == "BertCNNPlus":
-            filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
-            model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
-                                        num_labels=self.arguments.num_labels,
-                                        cache_dir=self.arguments.cache_dir,
-                                        n_filters=self.arguments.filter_num,
-                                        filter_sizes=filter_sizes)
+            elif self.arguments.model_name == "BertRCNN":
+                model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                            num_labels=self.arguments.num_labels,
+                                            cache_dir=self.arguments.cache_dir,
+                                            rnn_hidden_size=self.arguments.rnn_hidden_size,
+                                            num_layers=self.arguments.num_layers,
+                                            bidirectional=self.arguments.bidirectional,
+                                            dropout=self.arguments.dropout)
+
+            elif self.arguments.model_name == "BertCNNPlus":
+                filter_sizes = [int(val) for val in self.arguments.filter_sizes.split()]
+                model = Net.from_pretrained(pretrained_model_name_or_path=self.arguments.bert_model_dir,
+                                            num_labels=self.arguments.num_labels,
+                                            cache_dir=self.arguments.cache_dir,
+                                            n_filters=self.arguments.filter_num,
+                                            filter_sizes=filter_sizes)
 
         model.to(DEVICE)
 
@@ -216,6 +192,43 @@ class Instructor(object):
             with open(self.arguments.output_config_file, 'w') as f:
                 f.write(model_to_save.config.to_json_string())
 
+    def generate(self):
+        self.dataset = Dataset(epochs=self.arguments.EPOCHS, batch=self.arguments.BATCH, val_batch=self.arguments.BATCH)
+        news, category, _, _ = self.dataset.get_all_data()
+        news = np.asarray([i['news'] for i in news])
+        category = np.asarray([i['category'] for i in category])
+
+        index = [i for i in range(len(news))]
+        np.random.shuffle(np.asarray(index))
+        train_news, dev_news = news[index[0:int(len(index) * 0.9)]], news[index[int(len(index) * 0.9):]]
+        train_category, dev_category = category[index[0:int(len(index) * 0.9)]], category[
+            index[int(len(index) * 0.9):]]
+
+        return train_news, train_category, dev_news, dev_category
+
+    def run(self):
+        remote_helper.get_remote_date("https://www.flyai.com/m/chinese_base.zip")
+        before_vocab_dir = os.path.join(os.getcwd(), 'vocab.txt')
+        after_vocab_dir = os.path.join(args.bert_model_dir, 'vocab.txt')
+        logger.info('>before_vocab_dir:{}'.format(before_vocab_dir))
+        logger.info('>after_vocab_dir:{}'.format(after_vocab_dir))
+
+        shutil.copyfile(before_vocab_dir, after_vocab_dir)
+
+        if not os.path.exists(self.arguments.output_dir):
+            os.mkdir(self.arguments.output_dir)
+
+        self.arguments.BATCH = self.arguments.BATCH // self.arguments.gradient_accumulation_steps
+
+        # 数据准备  分词器选择
+        tokenizer = BertTokenizer(self.arguments.bert_vocab_file).from_pretrained(self.arguments.bert_model_dir,
+                                                                                  do_lower_case=self.arguments.do_lower_case)
+        # 获取数据 news/keywords
+        train_news, train_category, dev_news, dev_category = self.generate()
+
+        self.train(Net=Net, train_category=train_category, dev_category=dev_category, train_news=train_news,
+                   dev_news=dev_news, tokenizer=tokenizer)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='BERT Baseline')
@@ -236,6 +249,7 @@ if __name__ == '__main__':
         torch.manual_seed(args.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+        torch.cuda.manual_seed_all(args.seed)
 
     if os.path.exists(args.log_dir) is False:
         os.mkdir(args.log_dir)

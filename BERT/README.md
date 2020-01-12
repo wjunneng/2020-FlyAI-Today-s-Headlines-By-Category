@@ -60,3 +60,18 @@ predict:
 -lr=2e-5
 -score:88.90
 '''
+
+## BertATT + pseudo_labeling【虚标签】 + label_smoothing【标签平滑】 
+
+'''
+train:
+-e=2
+-b=512
+
+predict:
+-e=1
+-b=512
+
+-lr=5e-5
+-score:88.80
+'''

@@ -23,7 +23,14 @@ save_name = 'BertATT'
 # model_name = 'BertRCNN'
 # save_name = 'BertRCNN'
 
-EPOCHS = 2
+# 是否利用 伪标签 来提升模型的泛化能力
+use_pseudo_labeling = True
+# 是否利用 标签平滑 正则化方法,提高模型的泛化能力
+use_label_smoothing = True
+
+PAD = -1
+label_smoothing = 0.07
+EPOCHS = 1
 BATCH = 512
 data_dir = os.path.join(os.getcwd(), "data/input")
 output_dir = os.path.join(os.getcwd(), "data/output")
@@ -34,9 +41,6 @@ bert_model_dir = os.path.join(os.getcwd(), 'data/input/model')
 output_model_file = os.path.join(output_dir, WEIGHTS_NAME)
 output_config_file = os.path.join(output_dir, CONFIG_NAME)
 
-# 是否利用 伪标签 来提升模型的泛化能力
-use_pseudo_labeling = True
-
 seed = 42
 data_type = 'toutiao'
 label_list = ['news_culture', 'news_entertainment', 'news_sports', 'news_finance', 'news_house',
@@ -46,7 +50,7 @@ gpu_ids = '0'
 do_lower_case = True
 max_seq_length = 28
 warmup_proportion = 0.1
-learning_rate = 2e-5
+learning_rate = 5e-5
 gradient_accumulation_steps = 1
 print_step = 10
 early_stop = 5

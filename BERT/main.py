@@ -18,6 +18,7 @@ from flyai.utils import remote_helper
 from flyai.dataset import Dataset
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
+from utils import NMTCriterion
 from utils import Util
 from net import Net
 import args
@@ -121,7 +122,10 @@ class Instructor(object):
                                          t_total=num_train_optimization_steps)
 
         """ 损失函数准备 """
-        criterion = nn.CrossEntropyLoss()
+        if self.arguments.use_label_smoothing:
+            criterion = NMTCriterion(label_smoothing=self.arguments.label_smoothing)
+        else:
+            criterion = nn.CrossEntropyLoss()
         criterion = criterion.to(DEVICE)
 
         best_auc, best_acc, global_step, early_stop_times = 0, 0, 0, 0
@@ -130,35 +134,24 @@ class Instructor(object):
                 break
 
             logger.info(f'---------------- Epoch: {epoch + 1:02} ----------')
-            epoch_loss, train_steps = 0, 0
 
-            all_preds = np.array([], dtype=int)
-            all_labels = np.array([], dtype=int)
-
-            scheduler.step()
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 model.train()
+                if self.arguments.label_smoothing:
+                    criterion.train()
 
                 batch = tuple(t.to(DEVICE) for t in batch)
                 _, input_ids, input_mask, segment_ids, label_ids = batch
 
                 logits = model(input_ids, segment_ids, input_mask, labels=None)
-                loss = criterion(logits.view(-1, self.arguments.num_labels), label_ids.view(-1))
+                loss = criterion(inputs=logits, labels=label_ids, normalization=1.0, reduce=False)
 
                 # 修正
                 if self.arguments.gradient_accumulation_steps > 1:
                     loss = loss / self.arguments.gradient_accumulation_steps
-                logger.info('\n>>train_loss: {}'.format(loss))
-                train_steps += 1
-                loss.backward()
 
-                # 用于画图和分析的数据
-                epoch_loss += loss.item()
-                preds = logits.detach().cpu().numpy()
-                outputs = np.argmax(preds, axis=1)
-                all_preds = np.append(all_preds, outputs)
-                label_ids = label_ids.to('cpu').numpy()
-                all_labels = np.append(all_labels, label_ids)
+                loss.backward(torch.ones_like(loss))
+                scheduler.step()
 
                 if (step + 1) % self.arguments.gradient_accumulation_steps == 0:
                     optimizer.step()
@@ -167,7 +160,8 @@ class Instructor(object):
 
                     if global_step % self.arguments.print_step == 0 and global_step != 0:
                         dev_loss, dev_acc, dev_report, dev_auc = Util.evaluate(model, dev_dataloader, criterion, DEVICE,
-                                                                               self.arguments.label_list)
+                                                                               self.arguments.label_list,
+                                                                               args=self.arguments)
                         logger.info('\n>>>dev report: \n{}'.format(dev_report))
                         # 以 acc 取优
                         if dev_acc > best_acc:
